@@ -1,165 +1,81 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import seaborn as sns
-import argparse
-from re import search
-from os.path import basename, getsize
+import matplotlib as mpl  # type: ignore
+import matplotlib.pyplot as plt  # type: ignore
+import seaborn as sns  # type: ignore
+from typing import Any, Dict, List, Union
 import pandas as pd
+import os
+import numpy as np
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
+result_dir = os.path.join(dir_path, "results")
+# common graph settings
+
+mpl.use("Agg")
+mpl.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
+mpl.rcParams["pdf.fonttype"] = 42
+mpl.rcParams["ps.fonttype"] = 42
+mpl.rcParams["font.family"] = "libertine"
+
+sns.set_style("whitegrid")
+sns.set_style("ticks", {"xtick.major.size": 8, "ytick.major.size": 8})
+sns.set_context("paper", rc={"font.size": 5, "axes.titlesize": 5, "axes.labelsize": 8})
+
+# 3.3 inch for single column, 7 inch for double column
+figwidth_third = 2
+figwidth_half = 3.3
+figwidth_full = 7
+
+FONTSIZE = 8
+
+palette = sns.color_palette("pastel")
+hatches = ["", "//", "x"]
 
 
-# Set global font size
-plt.rcParams['font.size'] = 8  # Sets the global font size to 14
-# plt.rcParams['axes.labelsize'] = 10  # Sets axis label size
-# plt.rcParams['xtick.labelsize'] = 8  # Sets x-tick label size
-# plt.rcParams['ytick.labelsize'] = 8  # Sets y-tick label size
-# plt.rcParams['legend.fontsize'] = 8  # Sets legend font size
-# plt.rcParams['axes.titlesize'] = 16  # Sets title font size
+def load_data() -> pd.DataFrame:
+    df = pd.read_csv(os.path.join(result_dir, 'reconf.csv'))
+    return df
 
-def setup_parser():
-    parser = argparse.ArgumentParser(
-        description='Plot graph'
-    )
-
-    parser.add_argument('-t',
-                        '--title',
-                        type=str,
-                        help='Title of the plot',
-                        )
-    parser.add_argument('-i',
-                        '--input_dir',
-                        type=str,
-                        help='Input dir',
-                        )
-    parser.add_argument('-f',
-                        '--file',
-                        type=str,
-                        help='Output file',
-                        )
-
-    parser.add_argument('-W', '--width',
-                        type=float,
-                        default=12,
-                        help='Width of the plot in inches'
-                        )
-    parser.add_argument('-H', '--height',
-                        type=float,
-                        default=6,
-                        help='Height of the plot in inches'
-                        )
-    return parser
-
-
-def parse_args(parser):
-    args = parser.parse_args()
-    return args
-
-
-def mpps_to_gbitps(mpps, size):
-    return mpps * (size + 20) * 8 / 1000 # 20: preamble + packet gap
 
 def main():
-    parser = setup_parser()
-    args = parse_args(parser)
+    data = load_data()
+    #print(data)
 
-    fig = plt.figure(figsize=(args.width, args.height))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.set_axisbelow(True)
-    if args.title:
-        plt.title(args.title)
-    plt.xlabel('System')
-    plt.ylabel('Time (ms)')
-    plt.grid()
-
-    plots = []
-
-    dfs = []
-    df = pd.read_csv(args.input_dir+'reconf.csv')
-
-    plot = sns.barplot(
-        data=df,
-        x = "system",
-        y = "time",
-        width = 0.5,
-        gap = -0.5
-        # hue = "system",
-        # style = "system",
-        # label=f'{self._name}',
-        # color=self._line_color,
-        # linestyle=self._line,
-        # linewidth=1,
-        # markers=True,
-        # errorbar='ci',
-        # markers=[ 'X' ],
-        # markeredgecolor='black',
-        # markersize=60,
-        # markeredgewidth=1,
-    )
-    ax.bar_label(ax.containers[0], fontsize=8);
-
-    legend = None
-
-    """
-    sns.move_legend(ax, "lower left",
-                    # bbox_to_anchor=(0.5, 0.95),
-                    bbox_to_anchor=(-0.011, -0.1),
-                    ncol=1, title=None, frameon=False)
-    """
-    # plot.add_legend(
-    #         bbox_to_anchor=(0.55, 0.3),
-    #         loc='upper left',
-    #         ncol=3, title=None, frameon=False,
-    #                 )
-
-    # if args.compress:
-    #     # empty  name1 name2 ...
-    #     # 25pctl x     x     ...
-    #     # 50pctl x     x     ...
-    #     # 75pctl x     x     ...
-    #     # 99pctl x     x     ...
-    #     dummy, = plt.plot([0], marker='None', linestyle='None',
-    #                      label='dummy')
-    #     legend = plt.legend(
-    #         chain([
-    #             [dummy, p._plot25, p._plot50, p._plot75, p._plot99]
-    #             for p in plots
-    #         ]),
-    #         chain([
-    #             [p._name, '25.pctl', '50.pctl', '75.pctl', '99.pctl']
-    #             for p in plots
-    #         ]),
-    #         ncol=len(plots),
-    #         prop={'size': 8},
-    #         loc="lower right",
-    #     )
-    # else:
-    #     legend = plt.legend(loc="lower right", bbox_to_anchor=(1.15, 1),
-    #                         ncol=3, title=None, frameon=False,
-    #                         )
-    plt.ylim(0, 6)
-    ax.annotate(
-        "↓ Lower is better", # or ↓ ← ↑ →
-        xycoords="axes points",
-        # xy=(0, 0),
-        xy=(10, 0),
-        xytext=(-25, -40),
-        fontsize=8,
-        color="navy",
-        weight="bold",
-    )
-    ax.set(xlabel=None)
-
-    # legend.get_frame().set_facecolor('white')
-    # legend.get_frame().set_alpha(0.8)
-    fig.tight_layout(pad=0.2)
-    plt.subplots_adjust(left=0.25)
-    plt.xticks(rotation=30)
-    plt.savefig(args.file)
-    plt.close()
+    # create bar plot
+    fig, ax = plt.subplots(figsize=(figwidth_third, 1.5))
+    data.plot(kind="bar", ax=ax, color=palette, edgecolor="black", fontsize=FONTSIZE)
+    # annotate values
+    for container in ax.containers:
+        ax.bar_label(container, fontsize=FONTSIZE)
+    # set hatch
+    bars = ax.patches
+    hs = []
+    for h in hatches:
+        for i in range(int(len(bars) / len(hatches))):
+            hs.append(h)
+    for bar, hatch in zip(bars, hs):
+        bar.set_hatch(hatch)
+    ax.set_ylabel("Time (ms)")
+    ax.set_xlabel("")
+    ax.set_xticklabels(data.system, rotation=0)
+    # ax.legend(loc="upper left", title=None, fontsize=FONTSIZE,
+    #           bbox_to_anchor=(-0.02, 1.0))
+    # place legend below the graph
+    #ax.legend(
+    #    loc="right",
+    #    title=None,
+    #    fontsize=FONTSIZE,
+    #    bbox_to_anchor=(0.5, -0.15),
+    #    ncol=2,
+    #)
+    ax.get_legend().remove()
+    ax.set_title("Lower is better ↓", fontsize=FONTSIZE, color="navy")
+    # sns.despine()
+    plt.tight_layout()
+    plt.savefig(os.path.join(result_dir, "reboot_times.pdf"), format="pdf", pad_inches=0, bbox_inches="tight")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

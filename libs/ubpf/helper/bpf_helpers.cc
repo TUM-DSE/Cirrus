@@ -1,15 +1,15 @@
-#include "bpf_helpers.hh"
+#include "bpf_helpers.h"
 #include <uk/plat/time.h>
 
-#include <cstdarg>
-#include <cstdio>
-#include <cstdint>
-#include <cstdlib>
-#include <chrono>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+/*#include <chrono>
 #include <ctime>
-#include <random>
+#include <random>*/
 
-void *bpf_map_lookup_elem(void *raw_map, void *key) {
+/*void *bpf_map_lookup_elem(void *raw_map, void *key) {
     bpf_map &map = *reinterpret_cast<bpf_map *>(raw_map);
     switch (map.def.type) {
         case BPF_MAP_TYPE_HASH: {
@@ -81,7 +81,7 @@ long bpf_map_delete_elem(void *raw_map, void *key) {
             return 0;
         }
     }
-}
+}*/
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
@@ -129,33 +129,33 @@ void bpf_trace_printk(const char *fmt, int fmt_size, ...) {
 uint64_t bpf_ktime_get_ns() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<uint64_t>(ts.tv_sec) * 1000000000ull + ts.tv_nsec;
+    return (uint64_t)(ts.tv_sec) * (uint64_t)1000000000 + ts.tv_nsec;
 }
 
-uint32_t bpf_get_prandom_u32() {
+/*uint32_t bpf_get_prandom_u32() {
     std::random_device rd;
     std::mt19937 generator(rd());
 
     std::uniform_int_distribution <uint32_t> distribution(0, UINT32_MAX);
 
     return distribution(generator);
-}
+}*/
 
-uint64_t unwind(uint64_t i) {
-    return i;
-}
-
-uint64_t do_data_relocation(
+/*uint64_t do_data_relocation(
         void *user_context,
         const uint8_t *data,
         uint64_t data_size,
         uint64_t imm
 ) {
-    auto *ctx = static_cast<bpf_map_ctx *>(user_context);
+    struct bpf_map_ctx* ctx = (bpf_map_ctx*)user_context;
 
-    auto data_ptr = reinterpret_cast<uint64_t>(data);
+    uint64_t* data_ptr = (uint64_t*)data;
     void *mem;
-    if (ctx->global_data.find(data_ptr) != ctx->global_data.end()) {
+    int i=0;
+    while(ctx->global_data[i] != data_ptr && i < ctx->global_data_size){
+        i++;
+    }
+    if(i < ctx->global_data_size){
         mem = ctx->global_data[data_ptr];
     } else {
         mem = calloc(data_size, sizeof(uint8_t));
@@ -236,4 +236,4 @@ uint64_t do_map_relocation(
 
 	printf("Startup trace (nsec): load elf > relocate map: %llu\n", ukplat_monotonic_clock() - ts);
     return reinterpret_cast<uint64_t>(map);
-}
+}*/

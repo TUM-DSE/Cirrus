@@ -1,26 +1,22 @@
-#ifndef UBPF_HELPERS_HH
-#define UBPF_HELPERS_HH
+#ifndef UBPF_HELPERS_H
+#define UBPF_HELPERS_H
 
-#include <cstdint>
-#include <unordered_map>
-#include <vector>
-#include <string>
+#include <stdint.h>
+#include <string.h>
 
 void bpf_trace_printk(const char *fmt, int fmt_size, ...);
 
-void *bpf_map_lookup_elem(void *map, void *key);
+/*void *bpf_map_lookup_elem(void *map, void *key);
 
 long bpf_map_update_elem(void *map, void *key, const void *value, uint64_t flags);
 
-long bpf_map_delete_elem(void *map, void *key);
+long bpf_map_delete_elem(void *map, void *key);*/
 
 uint64_t bpf_ktime_get_ns(void);
 
-uint32_t bpf_get_prandom_u32(void);
+//uint32_t bpf_get_prandom_u32(void);
 
-uint64_t unwind(uint64_t i);
-
-enum bpf_map_type {
+/*enum bpf_map_type {
     BPF_MAP_TYPE_UNSPEC,
     BPF_MAP_TYPE_HASH,
     BPF_MAP_TYPE_ARRAY,
@@ -58,30 +54,10 @@ struct bpf_map {
 };
 
 struct bpf_map_ctx {
-    std::unordered_map<std::string, struct bpf_map *> map_by_name;
-    std::unordered_map<uint64_t, void *> global_data;
-};
-
-// Type alias for convenience
-using KeyType = std::vector<uint8_t>;
-using ValueType = std::vector<uint8_t>;
-
-// Hash function for vector<uint8_t>
-struct VectorHash {
-    std::size_t operator()(const std::vector <uint8_t> &v) const {
-        std::size_t hash = 0;
-        for (auto byte: v) {
-            hash ^= std::hash<uint8_t>()(byte) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-        }
-        return hash;
-    }
-};
-
-// Equality function for vector<uint8_t>
-struct VectorEqual {
-    bool operator()(const std::vector <uint8_t> &lhs, const std::vector <uint8_t> &rhs) const {
-        return lhs == rhs;
-    }
+    char** maps_names;
+    struct bpf_map** maps;
+    void* global_data;
+    int global_data_size;
 };
 
 uint64_t do_map_relocation(
@@ -92,6 +68,6 @@ uint64_t do_map_relocation(
         uint64_t symbol_offset,
         uint64_t symbol_size,
         uint64_t relocation_offset
-);
+);*/
 
 #endif /* UBPF_HELPERS_HH */

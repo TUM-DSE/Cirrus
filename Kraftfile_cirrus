@@ -1,0 +1,46 @@
+specification: '0.6'
+name: sqlite
+unikraft:
+  source: libs/unikraft
+  kconfig:
+    CONFIG_LIBUKLIBPARAM: 'y'
+    CONFIG_LIBPOSIX_POLL_YIELD: 'y'
+    CONFIG_LIBUKMMAP: 'y'
+    CONFIG_LIBPOSIX_SYSINFO: 'y'
+    CONFIG_LIBUK9P: 'y'
+    CONFIG_LIB9PFS: 'y'
+    CONFIG_LIBVIRTIO_9P: 'y'
+    CONFIG_LIBVIRTIO_BUS: 'y'
+    CONFIG_PLAT_KVM: 'y'
+    CONFIG_LIBVFSCORE: 'y'
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI: 'y'
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI_9PFS: 'y'
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI_9PFS_TAG: 'y'
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI0: 'y'
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI0_DEV_ARG: "fs0"
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI0_MP_ARG: "/"
+    CONFIG_LIBVFSCORE_AUTOMOUNT_CI0_DRIVER_ARG: "9pfs"
+    CONFIG_LIBPKU: 'y'
+    CONFIG_PAGING: 'y'
+targets:
+  - architecture: x86_64
+    platform: qemu
+libraries:
+  musl:
+    version: stable
+    kconfig:
+      CONFIG_LIBMUSL: 'y'
+  openssl:
+    version: stable
+    kconfig:
+     - CONFIG_OPENSSL=y
+     - CONFIG_LIBCRYPTO=y
+  ubpf:
+    source: libs/ubpf
+    kconfig:
+      CONFIG_LIBUBPF: 'y'
+  sqlite:
+    source: libs/sqlite
+    kconfig:
+      CONFIG_LIBSQLITE_MAIN_FUNCTION: 'y'
+      CONFIG_LIBSQLITE_USE_ROUTINE: 'y'

@@ -3,8 +3,8 @@ build/
 nix/builds/
 target
 .unikraft
-.config.click_qemu-x86_64
-.config.click_qemu-x86_64.old
+.config.sqlite_qemu-x86_64
+.config.sqlite_qemu-x86_64.old
 libs/ubpf/vm/libubpf.so
 rootfs/*.bin
 Makefile.uk
@@ -24,3 +24,4 @@ libs/click-og.zip
 
 VMs/
 out*/
+.nix-channels

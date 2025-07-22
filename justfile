@@ -1,6 +1,10 @@
 proot := justfile_directory()
 qemu_ssh_port := "2222"
 user := `whoami`
+sf := "1"
+smp := "1"
+mem := "10G"
+rep := "3"
 
 default:
     @just --choose
@@ -19,28 +23,22 @@ ssh COMMAND="":
     root@localhost -- "{{COMMAND}}"
 
 vm-linux EXTRA_CMDLINE="" :
-    sudo qemu-system-x86_64 \
+    sudo taskset -c 0 qemu-system-x86_64 \
         -cpu host \
-        -smp 4 \
+        -smp {{smp}} \
         -enable-kvm \
-        -m 16G \
+        -m {{mem}} \
         -machine q35,accel=kvm,kernel-irqchip=split \
         -device intel-iommu,intremap=on,device-iotlb=on,caching-mode=on \
         -device virtio-serial \
-        -fsdev local,id=home,path={{proot}},security_model=none \
+        -fsdev local,id=home,path={{proot}}/shared_dir,security_model=none \
         -device virtio-9p-pci,fsdev=home,mount_tag=home,disable-modern=on,disable-legacy=off \
         -fsdev local,id=nixstore,path=/nix/store,security_model=none \
         -device virtio-9p-pci,fsdev=nixstore,mount_tag=nixstore,disable-modern=on,disable-legacy=off \
         -drive file={{proot}}/VMs/guest-image.qcow2 \
         -net nic,netdev=user.0,model=virtio \
         -netdev user,id=user.0,hostfwd=tcp:127.0.0.1:{{qemu_ssh_port}}-:22 \
-        -netdev bridge,id=en0,br=clicknet \
-        -device virtio-net-pci,netdev=en0 \
         -nographic
-
-
-#-device vfio-pci,host={{PASSTHROUGH}} \
-#PASSTHROUGH=`yq -r '.devices[] | select(.name=="ethDut") | ."pci"' hosts/$(hostname).yaml`
 
 vm-image-init:
     #!/usr/bin/env bash
@@ -58,153 +56,29 @@ vm-image-init:
     nix build .#guest-image --out-link {{proot}}/VMs/ro
     overwrite guest-image
 
-# use autotest tmux sessions: `just autotest-tmux ls`
-autotest-tmux *ARGS:
-  #!/usr/bin/env python3
-  from configparser import ConfigParser, ExtendedInterpolation
-  import importlib.util
-  spec = importlib.util.spec_from_file_location("default_parser", "benchmark/pysrc/conf.py")
-  default_parser = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(default_parser)
-  conf = default_parser.default_config_parser()
-  conf.read("{{proot}}/benchmark/conf/uk_localhost.cfg")
-  import os
-  os.system(f"tmux -L {conf['common']['tmux_socket']} {{ARGS}}")
-
-# connect to the autotest guest
-autotest-ssh *ARGS:
-  #!/usr/bin/env python3
-  from configparser import ConfigParser, ExtendedInterpolation
-  import importlib.util
-  spec = importlib.util.spec_from_file_location("default_parser", "benchmark/pysrc/conf.py")
-  default_parser = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(default_parser)
-  conf = default_parser.default_config_parser()
-  conf.read("{{proot}}/benchmark/conf/uk_localhost.cfg")
-  import os
-  sudo = ""
-  if conf["host"]["ssh_as_root"]:
-    sudo = "sudo "
-  cmd = f"{sudo}ssh -F {conf['host']['ssh_config']} {conf['guest']['fqdn']} {{ARGS}}"
-  print(f"$ {cmd}")
-  os.system(cmd)
-
-benchmark:
-  python3 benchmark/pysrc/measure_throughput.py -c benchmark/conf/uk_localhost.cfg -b -vvv
-
-build-dependencies:
-  mkdir -p {{proot}}/nix/builds
-  nix build .#linux-pktgen -o {{proot}}/nix/builds/linux-pktgen
-  nix build --inputs-from . nixpkgs#qemu -o {{proot}}/nix/builds/qemu
-  nix build .#vpp2 -o {{proot}}/nix/builds/vpp
-  nix build .#click -o {{proot}}/nix/builds/click
-  nix build -o {{proot}}/nix/builds/xdp github:vmuxio/vmuxio#xdp-reflector
-  nix build --inputs-from . nixpkgs#time -o {{proot}}/nix/builds/time
-  nix build .#moongen-lachnit -o {{proot}}/nix/builds/moongen-lachnit
-
-build-click-og:
-  nix develop --unpack .#click
-  mv source libs/click-og
-  cd libs/click-og && nix develop .#click --command bash -c 'eval "$postPatch"'
-  cd libs/click-og && nix develop .#click --command bash -c './configure'
-  cd libs/click-og && nix develop .#click --command bash -c 'make -j$(nproc)'
-
-
-downloadLibs:
-    @nix develop .#unikraft --command bash -c 'sourceRoot=$(pwd); export SKIP_UNPACK_UNIKRAFT=1; eval "$postUnpack"'
-
-kill:
-        sudo pkill -f "clicknet"
-        sudo pkill -f "controlnet"
-
-throughput-cpio:
-    rm -r /tmp/ukcpio-$(USER) || true
-    mkdir -p /tmp/ukcpio-$(USER)
-    cp ./throughput.click /tmp/ukcpio-$(USER)/config.click
-    ./libs/unikraft/support/scripts/mkcpio ./throughput.cpio /tmp/ukcpio-$(USER)
-
-nat-cpio:
-    rm -r /tmp/ukcpio-{{user}} || true
-    mkdir -p /tmp/ukcpio-{{user}}
-    cp ./benchmark/configurations/thomer-nat.click /tmp/ukcpio-{{user}}/config.click
-    ./libs/unikraft/support/scripts/mkcpio ./throughput.cpio /tmp/ukcpio-{{user}}
-
-stringmatcher-cpio:
-    rm -r /tmp/ukcpio-{{user}} || true
-    mkdir -p /tmp/ukcpio-{{user}}
-    cp ./benchmark/configurations/stringmatcher.click /tmp/ukcpio-{{user}}/config.click
-    cp ./benchmark/bpfilters/stringmatcher /tmp/ukcpio-{{user}}/stringmatcher
-    cp ./benchmark/bpfilters/stringmatcher.sig /tmp/ukcpio-{{user}}/stringmatcher.sig
-    ./libs/unikraft/support/scripts/mkcpio ./throughput.cpio /tmp/ukcpio-{{user}}
-
-natebpf-cpio:
-    rm -r /tmp/ukcpio-{{user}} || true
-    mkdir -p /tmp/ukcpio-{{user}}
-    cp ./benchmark/configurations/firewall-10000.click /tmp/ukcpio-{{user}}/config.click
-    # cp ./benchmark/configurations/thomer-nat-ebpf.click /tmp/ukcpio-{{user}}/config.click
-    # cp ./benchmark/configurations/thomer-nat.click /tmp/ukcpio-{{user}}/config.click
-    # cp ./benchmark/configurations/test.click /tmp/ukcpio-{{user}}/config.click
-    # cp ./benchmark/configurations/test2.click /tmp/ukcpio-{{user}}/config.click
-    # cp ./benchmark/configurations/stringmatcher.click /tmp/ukcpio-{{user}}/config.click
-    cp ./benchmark/bpfilters/round-robin /tmp/ukcpio-{{user}}/round-robin
-    cp ./benchmark/bpfilters/round-robin.sig /tmp/ukcpio-{{user}}/round-robin.sig
-    cp ./benchmark/bpfilters/nat /tmp/ukcpio-{{user}}/nat
-    cp ./benchmark/bpfilters/nat.sig /tmp/ukcpio-{{user}}/nat.sig
-    cp ./benchmark/bpfilters/firewall-10000 /tmp/ukcpio-{{user}}/firewall-10000
-    cp ./benchmark/bpfilters/firewall-10000.sig /tmp/ukcpio-{{user}}/firewall-10000.sig
-    ./libs/unikraft/support/scripts/mkcpio ./throughput.cpio /tmp/ukcpio-{{user}}
-
-vm: natebpf-cpio
-    sudo taskset -c 3,4 qemu-system-x86_64 \
-        -accel kvm -cpu max \
-        -m 12G -object memory-backend-file,id=mem,size=12G,mem-path=/dev/hugepages,share=on \
-        -mem-prealloc -numa node,memdev=mem \
-        -netdev bridge,id=en0,br=clicknet \
-        -device virtio-net-pci,netdev=en0 \
-        -append " vfs.fstab=[\"initrd0:/:extract::ramfs=1:\"] --" \
-        -kernel ./.unikraft/build/click_qemu-x86_64 \
-        -initrd ./throughput.cpio \
+vm-unikraft:
+    sudo taskset -c 0 qemu-system-x86_64 \
+        -accel kvm -cpu host -smp {{smp}} \
+        -m {{mem}} \
+        -nodefaults -machine acpi=off -display none \
+        -fsdev local,id=myid,path={{proot}}/shared_dir,security_model=none \
+        -device virtio-9p-pci,fsdev=myid,mount_tag=fs0,disable-modern=on,disable-legacy=off \
+        -kernel .unikraft/build/sqlite_qemu-x86_64 \
+        -serial stdio -device isa-debug-exit \
         -nographic
 
-
-vm-vhost: throughput-cpio
-    sudo taskset -c 3,4 qemu-system-x86_64 \
-        -accel kvm -cpu max \
-        -m 1024M -object memory-backend-file,id=mem,size=1024M,mem-path=/dev/hugepages,share=on \
-        -mem-prealloc -numa node,memdev=mem \
-        -chardev socket,id=char1,path=/tmp/vhost-user-okelmann-0,server \
-        -netdev type=vhost-user,id=hostnet1,chardev=char1  \
-        -device virtio-net-pci,netdev=hostnet1,id=net1,mac=52:54:00:00:00:14 \
-        -append " vfs.fstab=[\"initrd0:/:extract::ramfs=1:\"] --" \
-        -kernel ./.unikraft/build/click_qemu-x86_64 \
-        -initrd ./throughput.cpio \
-        -nographic
-
-
-vhost-user:
-    sudo ./result-examples/bin/dpdk-vhost -l 5-8 -n 4 --socket-mem 1024 -- --socket-file /tmp/vhost-user0 --client -p 1 --stats 1
-
-
-vpp-notes:
-    # sudo vpp -c ./benchmark/configurations/vpp.conf
-    # sudo vppctl -s /tmp/vpp-cli
-    # show log
-    # show interface
-    # create vhost-user socket /tmp/vhost-user0
-    # set int state VirtualEthernet0/0/0 up
-    # set interface l2 xconnect GigabitEthernet0/8/0.300 GigabitEthernet0/9/0.300
-
-
-perf-kvm-top:
-    sudo perf kvm --guestkallsyms=./.unikraft/build/click_qemu-x86_64.sym --guestvmlinux=.unikraft/build/click_qemu-x86_64.dbg top -p $(pgrep qemu)
-
-perf-kvm-record:
-    sudo perf kvm --guestkallsyms=./.unikraft/build/click_qemu-x86_64.sym --guestvmlinux=.unikraft/build/click_qemu-x86_64.dbg record -g -p $(pgrep qemu)
-    sudo perf kvm --guestkallsyms=./.unikraft/build/click_qemu-x86_64.sym --guestvmlinux=.unikraft/build/click_qemu-x86_64.dbg report
-
-perf-qemu-record:
-    sudo perf record -g -p $(pgrep qemu)
-    sudo perf script > perf.trace
+prepare_db:
+  #!/usr/bin/env bash
+  cd {{proot}}/TPCH-sqlite; SCALE_FACTOR={{sf}} make
+  mv {{proot}}/TPCH-sqlite/TPC-H.db {{proot}}/shared_dir/
+  mkdir -p {{proot}}/shared_dir/queries
+  cd {{proot}}/TPCH-sqlite/tpch-dbgen; for q in `seq 1 22`;
+    do
+        DSS_QUERY=queries \
+                ./qgen \
+                -s {{sf}} -d \
+                $q | tail -n +4 | {{proot}}/scripts/fix_sqlite_dates.pl | perl -00 -pe 's/;\nwhere rownum <= (-?\d+);/($1 == -1) ? ";" : "\nlimit $1;"/e'> {{proot}}/shared_dir/queries/q$q.sql
+    done
 
 qemu-startup:
     BPFTRACE_MAX_STRLEN=123 sudo -E bpftrace -e " \
@@ -218,19 +92,20 @@ qemu-startup:
 UBUNTU_PATH := "~/.vagrant.d/boxes/ubuntu-VAGRANTSLASH-jammy64/20241002.0.0/virtualbox/ubuntu-jammy-22.04-cloudimg.vmdk"
 ALPINE_PATH := "~/.vagrant.d/boxes/generic-VAGRANTSLASH-alpine319/4.3.12/virtualbox/generic-alpine319-virtualbox-x64-disk001.vmdk"
 
-imagesizes: natebpf-cpio
+imagesizes:
     # downloading images
     [ -e {{ALPINE_PATH}} ] || nix run --inputs-from ./ nixpkgs#vagrant -- box add generic/alpine319 --provider virtualbox --box-version 4.3.12
     [ -e {{UBUNTU_PATH}} ] || nix run --inputs-from ./ nixpkgs#vagrant -- box add ubuntu/jammy64 --provider virtualbox --box-version 20241002.0.0
-    # click unikraft nat ebpf
-    ls -l ./.unikraft/build/click_qemu-x86_64
-    ls -l ./throughput.cpio
-    # click linux nat ebpf
-    # we should also count non-trivial click dependencies: dpdk, libjannson
-    ls -l ./nix/builds/click/bin/click
-    ls -l ./benchmark/configurations/thomer-nat-ebpf.click
-    ls -l ./benchmark/bpfilters/nat
-    ls -l ./benchmark/bpfilters/nat.sig
+    # default unikraft
+    rm -f .config.sqlite_qemu-x86_64
+    kraft build --env QUERYFILE="/queries/q1.1.sql" -K Kraftfile_unikraft
+    ls -l ./.unikraft/build/sqlite_qemu-x86_64
+    # Cirrus
+    rm -f .config.sqlite_qemu-x86_64
+    kraft build --env QUERYFILE="/queries/q1.1.sql" -K Kraftfile_cirrus
+    ls -l ./.unikraft/build/sqlite_qemu-x86_64
+    # Linux
+    ls -l $(which sqlite3)
     ls -l {{ALPINE_PATH}}
     ls -l {{UBUNTU_PATH}}
 

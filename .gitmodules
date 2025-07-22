@@ -7,3 +7,9 @@
 [submodule "libs/unikraft"]
 	path = libs/unikraft
 	url = https://github.com/TUM-DSE/unibpf-unikraft.git
+[submodule "libs/sqlite"]
+	path = libs/sqlite
+	url = git@github.com:Meandres/lib-sqlite.git
+[submodule "sqlite-ssb"]
+	path = sqlite-ssb
+	url = git@github.com:UWHustle/sqlite-past-present-future.git

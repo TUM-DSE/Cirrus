@@ -1,4 +1,10 @@
 system,time
-Linux,3.294
-Unikraft,14.988
-Cirrus,4.018
+Linux,3.244
+Linux,2.806
+Linux,2.824
+Unikraft,14.997
+Unikraft,15.026
+Unikraft,15.033
+Cirrus,4.048
+Cirrus,4.155
+Cirrus,3.867
